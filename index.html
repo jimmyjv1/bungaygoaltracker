@@ -698,6 +698,18 @@
   .modal-btn-danger{ background:var(--danger); color:var(--chalk); }
 
   .modal-input option{ color:#000; }
+  .edit-delete-btn{
+    display:block;
+    width:100%;
+    margin-top:10px;
+    padding:11px;
+    border-radius:8px;
+    border:1.5px solid var(--danger);
+    background:transparent;
+    color:#F5A99E;
+    font-size:14px;
+    font-weight:700;
+  }
   .edit-card{ max-width:380px; max-height:90vh; overflow-y:auto; }
   .edit-label{
     display:block;
@@ -925,6 +937,18 @@
     <div class="modal-row">
       <button id="editCancelBtn" type="button" class="modal-btn-secondary">Cancel</button>
       <button id="editSaveBtn" type="button" class="modal-btn-primary">Save changes</button>
+    </div>
+    <button id="editDeleteBtn" type="button" class="edit-delete-btn">Delete game</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="deleteGameModal">
+  <div class="modal-card">
+    <div class="modal-title">Delete game</div>
+    <div class="modal-text" id="deleteGameText"></div>
+    <div class="modal-row">
+      <button id="deleteCancelBtn" type="button" class="modal-btn-secondary">Cancel</button>
+      <button id="deleteConfirmBtn" type="button" class="modal-btn-danger">Delete</button>
     </div>
   </div>
 </div>
@@ -1640,6 +1664,40 @@ document.getElementById('editOppPlus').addEventListener('click', ()=>{
 });
 
 document.getElementById('editCancelBtn').addEventListener('click', closeEditGame);
+
+document.getElementById('editDeleteBtn').addEventListener('click', ()=>{
+  const g = state.games.find(x => x.id === editGameId);
+  if(!g) return;
+  const pwInput = document.getElementById('editPassword');
+  if(pwInput.value !== '1234'){
+    showToast('Enter the password to delete this game');
+    pwInput.value = '';
+    pwInput.focus();
+    return;
+  }
+  document.getElementById('deleteGameText').textContent =
+    `Delete ${formatGameLabel(g)}? This can't be undone, and its goals will be removed from the season totals.`;
+  document.getElementById('deleteGameModal').classList.add('open');
+});
+
+document.getElementById('deleteCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('deleteGameModal').classList.remove('open');
+});
+
+document.getElementById('deleteConfirmBtn').addEventListener('click', ()=>{
+  const id = editGameId;
+  if(!id) return;
+  state.games = state.games.filter(x => x.id !== id);
+  if(state.currentGameId === id) state.currentGameId = null;
+  unlockedGames.delete(id);
+  state.lastUpdated = new Date().toISOString();
+  saveState();
+  document.getElementById('deleteGameModal').classList.remove('open');
+  closeEditGame();
+  render();
+  renderSeasonSummary();
+  showToast('Game deleted');
+});
 
 document.getElementById('editSaveBtn').addEventListener('click', ()=>{
   const g = state.games.find(x => x.id === editGameId);
