@@ -540,6 +540,8 @@
     word-break:break-word;
   }
   .tactics-token.selected{ border-color:#E7B84B; box-shadow:0 0 0 3px #D32F2F, 0 2px 6px rgba(0,0,0,0.45); }
+  .tactics-token.sub{ border-color:#FF8C00; box-shadow:0 0 0 4px #FF8C00, 0 2px 6px rgba(0,0,0,0.45); }
+  .tactics-token.sub.selected{ border-color:#FF8C00; box-shadow:0 0 0 4px #FF8C00, 0 0 0 7px #D32F2F; }
   .tactics-token.dragging{ cursor:grabbing; transform:scale(1.12); }
 
   .summary-overlay{
@@ -1811,24 +1813,56 @@ function tacticsSpread(){
   });
 }
 
+
+// Place tokens. Subs sit on the bottom edge in full screen; when the bars are
+// showing, they are lifted just above the bottom bar so they stay visible.
+function tacticsPlace(){
+  const ov = document.getElementById('tacticsOverlay');
+  const immersive = ov.classList.contains('immersive');
+  const barH = document.querySelector('.tactics-bottom').offsetHeight || 0;
+  ov.querySelectorAll('.tactics-token').forEach(el => {
+    const tok = state.tactics.tokens.find(t => t.id === el.dataset.id);
+    if(!tok) return;
+    el.style.left = (tok.x * 100) + '%';
+    el.style.top = (tok.sub && !immersive && tok.y > 0.86)
+      ? 'calc(100% - ' + (barH + 38) + 'px)'
+      : (tok.y * 100) + '%';
+  });
+}
+
+function tacticsToggleSub(tok){
+  const toks = state.tactics.tokens;
+  if(!tok.sub){
+    tok.sub = true; tok.px = tok.x; tok.py = tok.y;
+  } else {
+    tok.sub = false;
+    if(typeof tok.px === 'number'){ tok.x = tok.px; tok.y = tok.py; }
+    delete tok.px; delete tok.py;
+  }
+  // line the subs up evenly along the bottom
+  const subs = toks.filter(t => t.sub);
+  subs.forEach((t, i) => { t.x = (i + 1) / (subs.length + 1); t.y = 0.93; });
+  saveState(); renderTactics();
+}
+
 function renderTactics(){
   const box = document.getElementById('tacticsTokens');
   box.innerHTML = '';
   state.tactics.tokens.forEach(tok => {
     const el = document.createElement('div');
-    el.className = 'tactics-token' + (tok.id === tacticsSelected ? ' selected' : '');
+    el.className = 'tactics-token' + (tok.sub ? ' sub' : '') + (tok.id === tacticsSelected ? ' selected' : '');
     el.dataset.id = tok.id;
     el.textContent = tok.name;
-    el.style.left = (tok.x * 100) + '%';
-    el.style.top = (tok.y * 100) + '%';
     box.appendChild(el);
   });
+  tacticsPlace();
   document.getElementById('tacticsRemoveBtn').disabled = !tacticsSelected;
 }
 
 (function(){
   const overlay = document.getElementById('tacticsOverlay');
   let drag = null;
+  let lastTokTap = null;
 
   overlay.addEventListener('pointerdown', e => {
     const el = e.target.closest('.tactics-token');
@@ -1848,7 +1882,8 @@ function renderTactics(){
     if(!drag || e.pointerId !== drag.pid) return;
     const r = overlay.getBoundingClientRect();
     const x = Math.min(0.95, Math.max(0.05, (e.clientX - r.left) / r.width));
-    const y = Math.min(0.86, Math.max(0.1, (e.clientY - r.top) / r.height));
+    const yMax = overlay.classList.contains('immersive') ? 0.95 : 0.86;
+    const y = Math.min(yMax, Math.max(0.1, (e.clientY - r.top) / r.height));
     drag.tok.x = x; drag.tok.y = y;
     drag.el.style.left = (x * 100) + '%';
     drag.el.style.top = (y * 100) + '%';
@@ -1858,8 +1893,18 @@ function renderTactics(){
   const end = e => {
     if(!drag || e.pointerId !== drag.pid) return;
     drag.el.classList.remove('dragging');
-    if(drag.moved) saveState();
-    drag = null;
+    const d0 = drag; drag = null;
+    if(d0.moved){ saveState(); lastTokTap = null; return; }
+    // double tap on a player (full screen only) toggles substitute
+    if(overlay.classList.contains('immersive')){
+      const now = Date.now();
+      if(lastTokTap && lastTokTap.id === d0.tok.id && now - lastTokTap.t < 350){
+        lastTokTap = null;
+        tacticsToggleSub(d0.tok);
+      } else {
+        lastTokTap = { id: d0.tok.id, t: now };
+      }
+    }
   };
   overlay.addEventListener('pointerup', end);
   overlay.addEventListener('pointercancel', end);
@@ -1889,6 +1934,7 @@ function tacticsAddName(name){
 
   function setImmersive(on){
     overlay.classList.toggle('immersive', on);
+    tacticsPlace();
     try{
       if(on){
         const rf = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
@@ -1915,7 +1961,7 @@ function tacticsAddName(name){
 
   // if the user leaves native full screen with a system gesture, show the bars again
   const sync = () => {
-    if(!document.fullscreenElement && !document.webkitFullscreenElement) overlay.classList.remove('immersive');
+    if(!document.fullscreenElement && !document.webkitFullscreenElement){ overlay.classList.remove('immersive'); tacticsPlace(); }
   };
   document.addEventListener('fullscreenchange', sync);
   document.addEventListener('webkitfullscreenchange', sync);
@@ -1926,7 +1972,7 @@ document.getElementById('tacticsBtn').addEventListener('click', ()=>{
   tacticsSelected = null;
   renderTactics();
   document.getElementById('tacticsOverlay').classList.add('open');
-  showToast('Tip: double tap the pitch for full screen');
+  showToast('Tip: double tap the pitch for full screen · then double tap a player to sub');
 });
 document.getElementById('closeTacticsBtn').addEventListener('click', ()=>{
   window.tacticsSetImmersive && document.getElementById('tacticsOverlay').classList.contains('immersive') && window.tacticsSetImmersive(false);
@@ -1954,6 +2000,7 @@ document.getElementById('tacticsSquadBtn').addEventListener('click', ()=>{
   showToast(added ? `Added ${added} from squad` : 'Whole squad already on board');
 });
 document.getElementById('tacticsResetBtn').addEventListener('click', ()=>{
+  state.tactics.tokens.forEach(t => { t.sub = false; delete t.px; delete t.py; });
   tacticsSpread(); saveState(); renderTactics();
   showToast('Players lined up again');
 });
