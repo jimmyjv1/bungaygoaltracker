@@ -472,6 +472,59 @@
     transform:translateX(-50%) translateY(0);
   }
 
+
+  /* Tactics board */
+  .tactics-overlay{
+    position:fixed; inset:0; z-index:60; display:none; overflow:hidden;
+    background:
+      repeating-linear-gradient(to bottom,#2F8F46 0,#2F8F46 9.09%,#38A150 9.09%,#38A150 18.18%);
+    touch-action:none; user-select:none; -webkit-user-select:none;
+  }
+  .tactics-overlay.open{ display:block; }
+  .pitch-line{ position:absolute; border:2px solid rgba(255,255,255,0.85); pointer-events:none; box-sizing:border-box; }
+  .pitch-outer{ left:3%; right:3%; top:9%; bottom:14%; }
+  .pitch-half{ left:3%; right:3%; top:calc(9% + (100% - 23%) / 2); height:0; border-width:2px 0 0 0; }
+  .pitch-centre{ width:26vmin; height:26vmin; border-radius:50%; left:50%; top:calc(9% + (100% - 23%) / 2); transform:translate(-50%,-50%); }
+  .pitch-spot{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.9); border:none; left:50%; top:calc(9% + (100% - 23%) / 2); transform:translate(-50%,-50%); }
+  .pitch-box-top{ left:26%; right:26%; top:9%; height:13%; border-top:none; }
+  .pitch-box-bot{ left:26%; right:26%; bottom:14%; height:13%; border-bottom:none; }
+  .pitch-six-top{ left:38%; right:38%; top:9%; height:5%; border-top:none; }
+  .pitch-six-bot{ left:38%; right:38%; bottom:14%; height:5%; border-bottom:none; }
+  .tactics-top{
+    position:absolute; left:0; right:0; top:0; z-index:3;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 14px 10px; background:rgba(10,40,20,0.78);
+  }
+  .tactics-title{ color:#FFF; font-size:18px; font-weight:800; }
+  #closeTacticsBtn{ background:rgba(255,255,255,0.18); color:#FFF; border:none; border-radius:8px; padding:8px 14px; font-size:14px; font-weight:700; }
+  .tactics-bottom{
+    position:absolute; left:0; right:0; bottom:0; z-index:3;
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:rgba(10,40,20,0.85);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .tactics-row{ display:flex; gap:8px; }
+  .tactics-row input{
+    flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:none;
+    font-size:16px; font-family:inherit; background:#FFF; color:#000; outline:none; -webkit-appearance:none;
+  }
+  .tactics-row button{
+    border:none; border-radius:8px; padding:10px 12px; font-size:13px; font-weight:700; font-family:inherit;
+    background:rgba(255,255,255,0.2); color:#FFF; white-space:nowrap;
+  }
+  .tactics-row button.primary{ background:var(--sun); color:#000; }
+  .tactics-row button.danger{ background:#D32F2F; color:#FFF; }
+  .tactics-row button:disabled{ opacity:0.4; }
+  .tactics-token{
+    position:absolute; z-index:2; width:58px; height:58px; margin:-29px 0 0 -29px;
+    border-radius:50%; background:#FFF; color:#000; border:3px solid #3A3F93;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:10px; font-weight:800; line-height:1.1; padding:3px; box-sizing:border-box;
+    box-shadow:0 2px 6px rgba(0,0,0,0.45); touch-action:none; cursor:grab; overflow:hidden;
+    word-break:break-word;
+  }
+  .tactics-token.selected{ border-color:#E7B84B; box-shadow:0 0 0 3px #D32F2F, 0 2px 6px rgba(0,0,0,0.45); }
+  .tactics-token.dragging{ cursor:grabbing; transform:scale(1.12); }
+
   .summary-overlay{
     position:fixed;
     inset:0;
@@ -932,10 +985,38 @@
 
   <button id="summaryBtn" type="button">Game Summary</button>
   <button id="leaderboardBtn" type="button" style="margin-top:8px;">Goals Leaderboard</button>
+  <button id="tacticsBtn" type="button" style="margin-top:8px;">Tactics Board</button>
   <button id="backupBtn" type="button" style="margin-top:8px;">Backup & Restore</button>
 </main>
 
 <div class="toast" id="toast"></div>
+
+<div class="tactics-overlay" id="tacticsOverlay">
+  <div class="pitch-line pitch-outer"></div>
+  <div class="pitch-line pitch-half"></div>
+  <div class="pitch-line pitch-centre"></div>
+  <div class="pitch-line pitch-spot"></div>
+  <div class="pitch-line pitch-box-top"></div>
+  <div class="pitch-line pitch-box-bot"></div>
+  <div class="pitch-line pitch-six-top"></div>
+  <div class="pitch-line pitch-six-bot"></div>
+  <div class="tactics-top">
+    <div class="tactics-title">Tactics Board</div>
+    <button id="closeTacticsBtn" type="button">Close</button>
+  </div>
+  <div id="tacticsTokens"></div>
+  <div class="tactics-bottom">
+    <div class="tactics-row">
+      <input id="tacticsName" placeholder="Add player to board…" autocomplete="off" />
+      <button id="tacticsAddBtn" class="primary" type="button">Add</button>
+    </div>
+    <div class="tactics-row">
+      <button id="tacticsRemoveBtn" class="danger" type="button" disabled>Remove selected</button>
+      <button id="tacticsSquadBtn" type="button">Add squad</button>
+      <button id="tacticsResetBtn" type="button">Reset</button>
+    </div>
+  </div>
+</div>
 
 <div class="summary-overlay" id="leaderboardOverlay">
   <div class="summary-header">
@@ -1690,6 +1771,132 @@ function renderLeaderboard(){
     `;
   }).join('');
 }
+
+
+/* ---------- Tactics board ---------- */
+let tacticsSelected = null;
+
+function tacticsInit(){
+  if(!state.tactics || !Array.isArray(state.tactics.tokens)){
+    state.tactics = { tokens: [] };
+    state.players.forEach(p => state.tactics.tokens.push({ id:'t'+p.id, name:p.name, x:0.5, y:0.5 }));
+    tacticsSpread();
+    saveState();
+  }
+}
+
+function tacticsSpread(){
+  const t = state.tactics.tokens, n = t.length, cols = 4;
+  t.forEach((tok, i) => {
+    const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols);
+    tok.x = (i % cols + 1) / (inRow + 1);
+    tok.y = 0.3 + row * 0.14;
+  });
+}
+
+function renderTactics(){
+  const box = document.getElementById('tacticsTokens');
+  box.innerHTML = '';
+  state.tactics.tokens.forEach(tok => {
+    const el = document.createElement('div');
+    el.className = 'tactics-token' + (tok.id === tacticsSelected ? ' selected' : '');
+    el.dataset.id = tok.id;
+    el.textContent = tok.name;
+    el.style.left = (tok.x * 100) + '%';
+    el.style.top = (tok.y * 100) + '%';
+    box.appendChild(el);
+  });
+  document.getElementById('tacticsRemoveBtn').disabled = !tacticsSelected;
+}
+
+(function(){
+  const overlay = document.getElementById('tacticsOverlay');
+  let drag = null;
+
+  overlay.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.tactics-token');
+    if(!el) return;
+    e.preventDefault();
+    const tok = state.tactics.tokens.find(t => t.id === el.dataset.id);
+    if(!tok) return;
+    tacticsSelected = tok.id;
+    overlay.querySelectorAll('.tactics-token.selected').forEach(n => n.classList.remove('selected'));
+    el.classList.add('selected', 'dragging');
+    document.getElementById('tacticsRemoveBtn').disabled = false;
+    drag = { tok, el, pid: e.pointerId };
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+  });
+
+  overlay.addEventListener('pointermove', e => {
+    if(!drag || e.pointerId !== drag.pid) return;
+    const r = overlay.getBoundingClientRect();
+    const x = Math.min(0.95, Math.max(0.05, (e.clientX - r.left) / r.width));
+    const y = Math.min(0.86, Math.max(0.1, (e.clientY - r.top) / r.height));
+    drag.tok.x = x; drag.tok.y = y;
+    drag.el.style.left = (x * 100) + '%';
+    drag.el.style.top = (y * 100) + '%';
+    drag.moved = true;
+  });
+
+  const end = e => {
+    if(!drag || e.pointerId !== drag.pid) return;
+    drag.el.classList.remove('dragging');
+    if(drag.moved) saveState();
+    drag = null;
+  };
+  overlay.addEventListener('pointerup', end);
+  overlay.addEventListener('pointercancel', end);
+
+  // tap on empty pitch deselects
+  overlay.addEventListener('click', e => {
+    if(e.target.closest('.tactics-token, .tactics-top, .tactics-bottom')) return;
+    tacticsSelected = null; renderTactics();
+  });
+})();
+
+function tacticsAddName(name){
+  name = name.trim();
+  if(!name) return;
+  const n = state.tactics.tokens.length;
+  state.tactics.tokens.push({ id:'t'+Date.now()+Math.floor(Math.random()*1000), name, x:0.5, y:0.5 + ((n % 5) - 2) * 0.01 });
+  saveState();
+  renderTactics();
+}
+
+document.getElementById('tacticsBtn').addEventListener('click', ()=>{
+  tacticsInit();
+  tacticsSelected = null;
+  renderTactics();
+  document.getElementById('tacticsOverlay').classList.add('open');
+});
+document.getElementById('closeTacticsBtn').addEventListener('click', ()=>{
+  document.getElementById('tacticsOverlay').classList.remove('open');
+});
+document.getElementById('tacticsAddBtn').addEventListener('click', ()=>{
+  const inp = document.getElementById('tacticsName');
+  tacticsAddName(inp.value); inp.value = '';
+});
+document.getElementById('tacticsName').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('tacticsAddBtn').click(); }
+});
+document.getElementById('tacticsRemoveBtn').addEventListener('click', ()=>{
+  if(!tacticsSelected) return;
+  state.tactics.tokens = state.tactics.tokens.filter(t => t.id !== tacticsSelected);
+  tacticsSelected = null;
+  saveState(); renderTactics();
+});
+document.getElementById('tacticsSquadBtn').addEventListener('click', ()=>{
+  const onBoard = new Set(state.tactics.tokens.map(t => t.name.toLowerCase()));
+  let added = 0;
+  state.players.forEach(p => {
+    if(!onBoard.has(p.name.toLowerCase())){ tacticsAddName(p.name); added++; }
+  });
+  showToast(added ? `Added ${added} from squad` : 'Whole squad already on board');
+});
+document.getElementById('tacticsResetBtn').addEventListener('click', ()=>{
+  tacticsSpread(); saveState(); renderTactics();
+  showToast('Players lined up again');
+});
 
 document.getElementById('leaderboardBtn').addEventListener('click', ()=>{
   renderLeaderboard();
