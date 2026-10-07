@@ -778,7 +778,7 @@
     </div>
     <div class="stat">
       <div class="num" id="topScorer">–</div>
-      <div class="lbl">Top scorer</div>
+      <div class="lbl" id="topScorerLbl">Top scorer</div>
     </div>
   </div>
 </header>
@@ -1108,7 +1108,21 @@ function render(){
   document.getElementById('totalGoals').textContent = total;
 
   const withGoals = state.players.map(p=>({name:p.name, total:seasonTotalFor(p.id)})).filter(p=>p.total>0).sort((a,b)=>b.total-a.total);
-  document.getElementById('topScorer').textContent = withGoals[0] ? withGoals[0].name.split(' ')[0] : '–';
+  const topEl = document.getElementById('topScorer');
+  const topLbl = document.getElementById('topScorerLbl');
+  if(withGoals.length === 0){
+    topEl.textContent = '–';
+    topEl.style.fontSize = '';
+    topEl.style.lineHeight = '';
+    topLbl.textContent = 'Top scorer';
+  } else {
+    const best = withGoals[0].total;
+    const leaders = withGoals.filter(p => p.total === best).map(p => p.name.split(' ')[0]);
+    topEl.textContent = leaders.length === 2 ? leaders.join(' & ') : leaders.join(', ');
+    topEl.style.fontSize = leaders.length === 1 ? '' : (leaders.length === 2 ? '16px' : '13px');
+    topEl.style.lineHeight = leaders.length === 1 ? '' : '1.2';
+    topLbl.textContent = leaders.length === 1 ? 'Top scorer' : 'Joint top scorers';
+  }
 
   const luEl = document.getElementById('lastUpdated');
   if(state.lastUpdated){
