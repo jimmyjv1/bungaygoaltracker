@@ -1664,9 +1664,8 @@ function renderLeaderboard(){
     .sort((a,b) => (b.goals - a.goals) || a.name.localeCompare(b.name));
   const max = rows[0].goals;
 
-  hint.textContent = max === 0
-    ? 'Season goals across all games · no goals recorded yet'
-    : 'Season goals across all games';
+  hint.textContent = max === 0 ? 'No goals recorded yet' : '';
+  hint.style.display = max === 0 ? '' : 'none';
 
   let rank = 0;
   let prevGoals = null;
