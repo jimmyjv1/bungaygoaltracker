@@ -185,6 +185,19 @@
     outline:none;
   }
   .new-game-form input::placeholder{ color:rgba(246,244,234,0.45); }
+  .new-game-form textarea{
+    padding:11px 12px;
+    border-radius:8px;
+    border:1px solid rgba(246,244,234,0.3);
+    background:rgba(246,244,234,0.08);
+    color:var(--chalk);
+    font-size:14px;
+    font-family:inherit;
+    outline:none;
+    resize:vertical;
+    min-height:70px;
+  }
+  .new-game-form textarea::placeholder{ color:rgba(246,244,234,0.45); }
   #gameTypeSelect{
     padding:11px 12px;
     border-radius:8px;
@@ -796,6 +809,7 @@
         <option value="tournament">Tournament</option>
       </select>
       <input id="tournamentNameInput" placeholder="Tournament name" style="display:none;" />
+      <textarea id="gameNotesInput" placeholder="Notes (optional)" rows="3"></textarea>
       <div class="row">
         <button id="cancelGameBtn" type="button">Cancel</button>
         <button id="startGameBtn" type="button" disabled>Start game</button>
@@ -901,6 +915,9 @@
         <button id="editOppPlus" type="button">+</button>
       </div>
     </div>
+
+    <label class="edit-label" for="editNotes">Notes</label>
+    <textarea id="editNotes" class="modal-input" rows="3" placeholder="Notes (optional)" style="min-height:70px; resize:vertical; font-family:inherit;"></textarea>
 
     <label class="edit-label" for="editPassword">Password</label>
     <input type="password" id="editPassword" class="modal-input" placeholder="Password to save changes" inputmode="numeric" />
@@ -1182,6 +1199,7 @@ document.getElementById('newGameBtn').addEventListener('click', ()=>{
   document.getElementById('gameTypeSelect').value = '';
   document.getElementById('tournamentNameInput').style.display = 'none';
   document.getElementById('tournamentNameInput').value = '';
+  document.getElementById('gameNotesInput').value = '';
   document.getElementById('startGameBtn').disabled = true;
   document.getElementById('opponentInput').focus();
 });
@@ -1222,12 +1240,14 @@ document.getElementById('startGameBtn').addEventListener('click', ()=>{
     id: uid('g'), opponent, date: dateVal, venue: selectedVenue,
     competition: selectedGameType,
     tournamentName: selectedGameType === 'tournament' ? tournamentName : '',
+    notes: document.getElementById('gameNotesInput').value.trim(),
     goals: {}, opponentGoals: 0, ended: false
   };
   state.games.push(game);
   state.currentGameId = game.id;
   document.getElementById('newGameForm').classList.remove('open');
   document.getElementById('opponentInput').value = '';
+  document.getElementById('gameNotesInput').value = '';
   render();
   saveState();
   showToast('Game started — tap goals as they happen');
@@ -1567,6 +1587,7 @@ function openEditGame(id){
   };
   document.getElementById('editOpponent').value = g.opponent || '';
   document.getElementById('editDate').value = g.date || '';
+  document.getElementById('editNotes').value = g.notes || '';
   setEditVenue(editDraft.venue);
   document.getElementById('editGameType').value = g.competition || '';
   const tInput = document.getElementById('editTournamentName');
@@ -1641,6 +1662,7 @@ document.getElementById('editSaveBtn').addEventListener('click', ()=>{
 
   g.opponent = document.getElementById('editOpponent').value.trim();
   g.date = document.getElementById('editDate').value || g.date;
+  g.notes = document.getElementById('editNotes').value.trim();
   if(editDraft.venue) g.venue = editDraft.venue;
   if(comp){
     g.competition = comp;
