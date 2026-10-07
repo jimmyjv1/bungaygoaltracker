@@ -540,8 +540,13 @@
     word-break:break-word;
   }
   .tactics-token.selected{ border-color:#E7B84B; box-shadow:0 0 0 3px #D32F2F, 0 2px 6px rgba(0,0,0,0.45); }
-  .tactics-token.sub{ border-color:#FF8C00; box-shadow:0 0 0 4px #FF8C00, 0 2px 6px rgba(0,0,0,0.45); }
-  .tactics-token.sub.selected{ border-color:#FF8C00; box-shadow:0 0 0 4px #FF8C00, 0 0 0 7px #D32F2F; }
+  .tactics-token.sub{ border-color:#FF8C00; box-shadow:0 0 0 2px #FF8C00, 0 2px 6px rgba(0,0,0,0.45); }
+  .tactics-token.sub.selected{ border-color:#FF8C00; box-shadow:0 0 0 2px #FF8C00, 0 0 0 5px #D32F2F; }
+  .tactics-token.pressing{ animation:tacticsHold 3s linear forwards; }
+  @keyframes tacticsHold{
+    0%,15%{ background:#FFF; transform:scale(1); }
+    100%{ background:#D32F2F; transform:scale(0.8); }
+  }
   .tactics-token.dragging{ cursor:grabbing; transform:scale(1.12); }
 
   .summary-overlay{
@@ -1874,12 +1879,27 @@ function renderTactics(){
     overlay.querySelectorAll('.tactics-token.selected').forEach(n => n.classList.remove('selected'));
     el.classList.add('selected', 'dragging');
     document.getElementById('tacticsRemoveBtn').disabled = false;
-    drag = { tok, el, pid: e.pointerId };
+    drag = { tok, el, pid: e.pointerId, sx: e.clientX, sy: e.clientY };
     try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    // hold for 3 seconds to delete the player
+    el.classList.add('pressing');
+    drag.holdTimer = setTimeout(() => {
+      if(!drag || drag.tok !== tok) return;
+      state.tactics.tokens = state.tactics.tokens.filter(t => t.id !== tok.id);
+      if(tacticsSelected === tok.id) tacticsSelected = null;
+      drag = null; lastTokTap = null;
+      saveState(); renderTactics();
+      try{ navigator.vibrate && navigator.vibrate(60); }catch(_){}
+      showToast(tok.name + ' removed');
+    }, 3000);
   });
 
   overlay.addEventListener('pointermove', e => {
     if(!drag || e.pointerId !== drag.pid) return;
+    if(drag.holdTimer && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 10){
+      clearTimeout(drag.holdTimer); drag.holdTimer = null; drag.el.classList.remove('pressing');
+    }
+    if(!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) <= 10) return;
     const r = overlay.getBoundingClientRect();
     const x = Math.min(0.95, Math.max(0.05, (e.clientX - r.left) / r.width));
     const yMax = overlay.classList.contains('immersive') ? 0.95 : 0.86;
@@ -1892,7 +1912,8 @@ function renderTactics(){
 
   const end = e => {
     if(!drag || e.pointerId !== drag.pid) return;
-    drag.el.classList.remove('dragging');
+    drag.el.classList.remove('dragging', 'pressing');
+    clearTimeout(drag.holdTimer);
     const d0 = drag; drag = null;
     if(d0.moved){ saveState(); lastTokTap = null; return; }
     // double tap on a player (full screen only) toggles substitute
