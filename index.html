@@ -537,14 +537,13 @@
   .summary-row.drawn{ background:rgba(224,158,53,0.22); border-left-color:#E09E35; }
   .summary-row.lost{ background:rgba(196,74,63,0.22); border-left-color:#C44A3F; }
   .summary-row.pending{ background:rgba(246,244,234,0.08); border-left-color:rgba(246,244,234,0.3); }
-  .summary-row-left{ min-width:0; }
+  .summary-row-left{ min-width:0; flex:1 1 auto; }
+  .summary-row-right{ flex:0 0 auto; text-align:right; white-space:nowrap; }
   .summary-row-teams{
     font-size:14.5px;
     font-weight:800;
     color:var(--chalk);
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    overflow-wrap:anywhere;
   }
   .summary-row-date{
     font-size:12px;
@@ -570,6 +569,7 @@
     font-weight:800;
     color:var(--chalk);
     flex-shrink:0;
+    white-space:nowrap;
   }
   .summary-row-tag{
     font-size:10.5px;
@@ -1263,7 +1263,7 @@ function renderGameRow(g){
         <div class="summary-row-date">${escapeHtml(dateStr)}</div>
         ${compBadge}
       </div>
-      <div style="text-align:right;">
+      <div class="summary-row-right">
         <div class="summary-row-score">${score}</div>
         <div class="summary-row-tag">${tag}</div>
       </div>
