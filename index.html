@@ -584,6 +584,51 @@
     font-size:14px;
   }
 
+  /* Game Summary page: white background, black text and buttons */
+  .summary-overlay{ background:#FFFFFF; }
+  .summary-overlay .summary-header{
+    background:#FFFFFF;
+    border-bottom:3px solid rgba(0,0,0,0.18);
+  }
+  .summary-overlay .summary-title{ color:#000; }
+  .summary-overlay #closeSummaryBtn{ background:#000; color:#FFF; }
+  .summary-overlay .summary-tab{
+    background:#FFFFFF;
+    border:1.5px solid #000;
+    color:#000;
+  }
+  .summary-overlay .summary-tab.active{
+    background:#000;
+    border-color:#000;
+    color:#FFF;
+  }
+  .summary-overlay .stat{
+    background:rgba(0,0,0,0.05);
+    border:1px solid rgba(0,0,0,0.18);
+  }
+  .summary-overlay .stat .num,
+  .summary-overlay .stat .lbl{ color:#000; }
+  .summary-overlay .summary-hint,
+  .summary-overlay .summary-empty,
+  .summary-overlay .tournament-group-title,
+  .summary-overlay .summary-row-teams,
+  .summary-overlay .summary-row-date,
+  .summary-overlay .summary-row-score,
+  .summary-overlay .summary-row-tag{ color:#000; }
+  .summary-overlay .summary-row.won{ background:rgba(74,163,90,0.2); }
+  .summary-overlay .summary-row.drawn{ background:rgba(224,158,53,0.24); }
+  .summary-overlay .summary-row.lost{ background:rgba(196,74,63,0.18); }
+  .summary-overlay .summary-row.pending{
+    background:rgba(0,0,0,0.05);
+    border-left-color:rgba(0,0,0,0.3);
+  }
+  .summary-overlay .summary-row-comp,
+  .summary-overlay .summary-row-comp.cup,
+  .summary-overlay .summary-row-comp.tournament{
+    background:rgba(0,0,0,0.1);
+    color:#000;
+  }
+
   .modal-backdrop{
     position:fixed;
     inset:0;
