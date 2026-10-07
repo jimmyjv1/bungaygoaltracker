@@ -535,13 +535,26 @@
     position:absolute; z-index:2; width:58px; height:58px; margin:-29px 0 0 -29px;
     border-radius:50%; background:#FFF; color:#000; border:3px solid #3A3F93;
     display:flex; align-items:center; justify-content:center; text-align:center;
-    font-size:10px; font-weight:800; line-height:1.1; padding:3px; box-sizing:border-box;
+    flex-direction:column; font-size:10px; font-weight:800; line-height:1.1; padding:3px; box-sizing:border-box;
     box-shadow:0 2px 6px rgba(0,0,0,0.45); touch-action:none; cursor:grab; overflow:hidden;
     word-break:break-word;
   }
   .tactics-token.selected{ border-color:#E7B84B; box-shadow:0 0 0 3px #D32F2F, 0 2px 6px rgba(0,0,0,0.45); }
   .tactics-token.sub{ border-color:#FF8C00; box-shadow:0 0 0 2px #FF8C00, 0 2px 6px rgba(0,0,0,0.45); }
   .tactics-token.sub.selected{ border-color:#FF8C00; box-shadow:0 0 0 2px #FF8C00, 0 0 0 5px #D32F2F; }
+  .tactics-clock{
+    position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:4;
+    background:#FFF; color:#000; border:2px solid #3A3F93; border-radius:20px;
+    padding:7px 14px; font-size:15px; font-weight:800; font-family:inherit;
+    font-variant-numeric:tabular-nums; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
+  .tactics-clock[data-state="running"]{ background:#2E7D32; color:#FFF; border-color:#FFF; }
+  .tactics-clock[data-state="stopped"]{ background:#D32F2F; color:#FFF; border-color:#FFF; }
+  .tactics-token .tk-n{ display:block; }
+  .tactics-token .tk-t{ display:block; font-size:9px; font-weight:700; color:#3A3F93; margin-top:1px; font-variant-numeric:tabular-nums; }
+  .tactics-token .tk-t:empty{ display:none; }
+  .lb-mins{ font-size:12px; font-weight:600; color:#555; margin-top:2px; }
+  .min-input{ width:76px !important; margin:0 !important; padding:7px 10px !important; text-align:center; }
   .tactics-token.pressing{ animation:tacticsHold 3s linear forwards; }
   @keyframes tacticsHold{
     0%,15%{ background:#FFF; transform:scale(1); }
@@ -1028,8 +1041,13 @@
     <div class="tactics-title">Tactics Board</div>
     <button id="closeTacticsBtn" type="button">Close</button>
   </div>
+  <button id="tacticsClock" class="tactics-clock" type="button">▶ Start</button>
   <div id="tacticsTokens"></div>
   <div class="tactics-bottom">
+    <div class="tactics-row">
+      <button id="tacticsTimerBtn" class="primary" type="button" style="flex:1;">Start game</button>
+      <button id="tacticsStopBtn" class="danger" type="button" style="flex:1;">Stop game</button>
+    </div>
     <div class="tactics-row">
       <input id="tacticsName" placeholder="Add player to board…" autocomplete="off" />
       <button id="tacticsAddBtn" class="primary" type="button">Add</button>
@@ -1132,6 +1150,12 @@
       </div>
     </div>
 
+    <div id="editMinutesWrap" style="display:none;">
+      <label class="edit-label" id="editMinutesLabel">Minutes played</label>
+      <div id="editMinutesList"></div>
+      <div style="height:14px;"></div>
+    </div>
+
     <label class="edit-label" for="editNotes">Notes</label>
     <textarea id="editNotes" class="modal-input" rows="3" placeholder="Notes (optional)" style="min-height:70px; resize:vertical; font-family:inherit;"></textarea>
 
@@ -1143,6 +1167,17 @@
       <button id="editSaveBtn" type="button" class="modal-btn-primary">Save changes</button>
     </div>
     <button id="editDeleteBtn" type="button" class="edit-delete-btn">Delete game</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="stopGameModal">
+  <div class="modal-card">
+    <div class="modal-title">Stop game</div>
+    <div class="modal-text">Stop the match clock and all player timers? You can still resume it afterwards.</div>
+    <div class="modal-row">
+      <button id="stopCancelBtn" type="button" class="modal-btn-secondary">Cancel</button>
+      <button id="stopConfirmBtn" type="button" class="modal-btn-danger">Stop game</button>
+    </div>
   </div>
 </div>
 
@@ -1461,6 +1496,7 @@ document.getElementById('switchGameBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('gameSelect').addEventListener('change', (e)=>{
+  timerHalt(getCurrentGame(), 'paused');
   state.currentGameId = e.target.value;
   render();
   saveState();
@@ -1486,6 +1522,7 @@ document.getElementById('startGameBtn').addEventListener('click', ()=>{
     goals: {}, opponentGoals: 0, ended: false
   };
   state.games.push(game);
+  timerHalt(getCurrentGame(), 'paused');
   state.currentGameId = game.id;
   document.getElementById('newGameForm').classList.remove('open');
   document.getElementById('opponentInput').value = '';
@@ -1499,6 +1536,7 @@ document.getElementById('saveGameBtn').addEventListener('click', ()=>{
   const game = getCurrentGame();
   if(!game) return;
   const total = Object.values(game.goals).reduce((s,n)=> s+n, 0);
+  timerHalt(game, 'stopped');
   game.ended = true;
   state.currentGameId = null;
   render();
@@ -1770,7 +1808,7 @@ function renderLeaderboard(){
   }
 
   const rows = state.players
-    .map(p => ({ name: p.name, goals: seasonTotalFor(p.id) }))
+    .map(p => ({ name: p.name, goals: seasonTotalFor(p.id), mins: Math.round(seasonMsFor(p.id) / 60000) }))
     .sort((a,b) => (b.goals - a.goals) || a.name.localeCompare(b.name));
   const max = rows[0].goals;
 
@@ -1788,6 +1826,7 @@ function renderLeaderboard(){
         <div class="lb-rank">${rank}</div>
         <div class="lb-main">
           <div class="lb-name">${escapeHtml(r.name)}</div>
+          ${r.mins > 0 ? `<div class="lb-mins">${r.mins} min played</div>` : ''}
           <div class="lb-bar"><span style="width:${pct}%"></span></div>
         </div>
         <div class="lb-goals">${r.goals}<small>${r.goals === 1 ? 'goal' : 'goals'}</small></div>
@@ -1797,8 +1836,62 @@ function renderLeaderboard(){
 }
 
 
+/* ---------- Match timer ---------- */
+function timerOf(g){
+  if(!g.timer) g.timer = { status:'idle', elapsed:0, since:null };
+  if(!g.times) g.times = {};
+  return g.timer;
+}
+function tokPid(tok){
+  if(tok.pid) return tok.pid;
+  const p = state.players.find(p => 't' + p.id === tok.id);
+  return p ? p.id : null;
+}
+function timeRec(g, tok){
+  timerOf(g);
+  if(!g.times[tok.id]) g.times[tok.id] = { name: tok.name, pid: tokPid(tok), ms: 0, since: null };
+  return g.times[tok.id];
+}
+function recLive(rec, now){ return rec.ms + (rec.since ? now - rec.since : 0); }
+function clockLive(g, now){
+  const t = g && g.timer;
+  if(!t) return 0;
+  return t.elapsed + (t.status === 'running' && t.since ? now - t.since : 0);
+}
+function timerHalt(g, status){
+  if(!g || !g.timer) return;
+  if(g.timer.status !== 'running'){
+    if(status === 'stopped' && g.timer.status !== 'idle') g.timer.status = 'stopped';
+    return;
+  }
+  const now = Date.now();
+  g.timer.elapsed += now - g.timer.since;
+  g.timer.since = null;
+  g.timer.status = status;
+  Object.values(g.times || {}).forEach(r => { if(r.since){ r.ms += now - r.since; r.since = null; } });
+}
+function timerStart(g){
+  const t = timerOf(g), now = Date.now();
+  t.status = 'running'; t.since = now;
+  state.tactics.tokens.forEach(tok => {
+    const r = timeRec(g, tok);
+    r.name = tok.name;
+    r.since = tok.sub ? null : now;
+  });
+}
+function fmtClock(ms){
+  const sec = Math.floor(ms / 1000), m = Math.floor(sec / 60);
+  return m + ':' + String(sec % 60).padStart(2, '0');
+}
+function seasonMsFor(pid){
+  let ms = 0;
+  state.games.forEach(g => Object.values(g.times || {}).forEach(r => { if(r.pid === pid) ms += r.ms; }));
+  return ms;
+}
+
 /* ---------- Tactics board ---------- */
 let tacticsSelected = null;
+let tacticsTick = null;
 
 function tacticsInit(){
   if(!state.tactics || !Array.isArray(state.tactics.tokens)){
@@ -1844,10 +1937,56 @@ function tacticsToggleSub(tok){
     if(typeof tok.px === 'number'){ tok.x = tok.px; tok.y = tok.py; }
     delete tok.px; delete tok.py;
   }
+  const g = getCurrentGame();
+  if(g && g.timer && g.timer.status === 'running'){
+    const r = timeRec(g, tok), now = Date.now();
+    if(tok.sub){ if(r.since){ r.ms += now - r.since; r.since = null; } }
+    else r.since = now;
+  }
   // line the subs up evenly along the bottom
   const subs = toks.filter(t => t.sub);
   subs.forEach((t, i) => { t.x = (i + 1) / (subs.length + 1); t.y = 0.93; });
   saveState(); renderTactics();
+}
+
+function tacticsUpdateTimes(){
+  const g = getCurrentGame(), now = Date.now();
+  const st = g && g.timer ? g.timer.status : 'idle';
+  const pill = document.getElementById('tacticsClock');
+  if(!g) pill.textContent = '⏱ No game';
+  else if(st === 'idle') pill.textContent = '▶ Start';
+  else pill.textContent = (st === 'running' ? '⏸ ' : st === 'stopped' ? '■ ' : '▶ ') + fmtClock(clockLive(g, now));
+  pill.dataset.state = g ? st : 'none';
+  document.getElementById('tacticsTimerBtn').textContent =
+    st === 'running' ? 'Pause game' : st === 'idle' ? 'Start game' : 'Resume game';
+  document.querySelectorAll('#tacticsTokens .tactics-token').forEach(el => {
+    const t = el.querySelector('.tk-t');
+    if(!t) return;
+    t.textContent = (g && g.timer && st !== 'idle')
+      ? fmtClock(recLive((g.times && g.times[el.dataset.id]) || { ms: 0, since: null }, now))
+      : '';
+  });
+}
+
+function tacticsToggleTimer(){
+  const g = getCurrentGame();
+  if(!g){ showToast('Select or start a game first'); return; }
+  if(g.ended){ showToast('This game has ended'); return; }
+  timerOf(g);
+  if(g.timer.status === 'running') timerHalt(g, 'paused');
+  else timerStart(g);
+  saveState();
+  tacticsUpdateTimes();
+}
+
+function tacticsDeleteToken(tok){
+  const g = getCurrentGame();
+  if(g && g.times && g.times[tok.id]){
+    const r = g.times[tok.id];
+    if(r.since){ r.ms += Date.now() - r.since; r.since = null; }
+  }
+  state.tactics.tokens = state.tactics.tokens.filter(t => t.id !== tok.id);
+  if(tacticsSelected === tok.id) tacticsSelected = null;
 }
 
 function renderTactics(){
@@ -1857,10 +1996,11 @@ function renderTactics(){
     const el = document.createElement('div');
     el.className = 'tactics-token' + (tok.sub ? ' sub' : '') + (tok.id === tacticsSelected ? ' selected' : '');
     el.dataset.id = tok.id;
-    el.textContent = tok.name;
+    el.innerHTML = '<span class="tk-n">' + escapeHtml(tok.name) + '</span><span class="tk-t"></span>';
     box.appendChild(el);
   });
   tacticsPlace();
+  tacticsUpdateTimes();
   document.getElementById('tacticsRemoveBtn').disabled = !tacticsSelected;
 }
 
@@ -1885,8 +2025,7 @@ function renderTactics(){
     el.classList.add('pressing');
     drag.holdTimer = setTimeout(() => {
       if(!drag || drag.tok !== tok) return;
-      state.tactics.tokens = state.tactics.tokens.filter(t => t.id !== tok.id);
-      if(tacticsSelected === tok.id) tacticsSelected = null;
+      tacticsDeleteToken(tok);
       drag = null; lastTokTap = null;
       saveState(); renderTactics();
       try{ navigator.vibrate && navigator.vibrate(60); }catch(_){}
@@ -1932,16 +2071,20 @@ function renderTactics(){
 
   // tap on empty pitch deselects
   overlay.addEventListener('click', e => {
-    if(e.target.closest('.tactics-token, .tactics-top, .tactics-bottom')) return;
+    if(e.target.closest('.tactics-token, .tactics-top, .tactics-bottom, .tactics-clock')) return;
     tacticsSelected = null; renderTactics();
   });
 })();
 
-function tacticsAddName(name){
+function tacticsAddName(name, pid){
   name = name.trim();
   if(!name) return;
   const n = state.tactics.tokens.length;
-  state.tactics.tokens.push({ id:'t'+Date.now()+Math.floor(Math.random()*1000), name, x:0.5, y:0.5 + ((n % 5) - 2) * 0.01 });
+  const tok = { id:'t'+Date.now()+Math.floor(Math.random()*1000), name, x:0.5, y:0.5 + ((n % 5) - 2) * 0.01 };
+  if(pid) tok.pid = pid;
+  state.tactics.tokens.push(tok);
+  const g = getCurrentGame();
+  if(g && g.timer && g.timer.status === 'running') timeRec(g, tok).since = Date.now();
   saveState();
   renderTactics();
 }
@@ -1970,7 +2113,7 @@ function tacticsAddName(name){
   window.tacticsSetImmersive = setImmersive;
 
   overlay.addEventListener('pointerup', e => {
-    if(e.target.closest('.tactics-token, .tactics-top, .tactics-bottom')){ last = null; return; }
+    if(e.target.closest('.tactics-token, .tactics-top, .tactics-bottom, .tactics-clock')){ last = null; return; }
     const now = Date.now();
     if(last && now - last.t < 350 && Math.abs(e.clientX - last.x) < 40 && Math.abs(e.clientY - last.y) < 40){
       last = null;
@@ -1994,10 +2137,32 @@ document.getElementById('tacticsBtn').addEventListener('click', ()=>{
   renderTactics();
   document.getElementById('tacticsOverlay').classList.add('open');
   showToast('Tip: double tap the pitch for full screen · then double tap a player to sub');
+  clearInterval(tacticsTick);
+  tacticsTick = setInterval(tacticsUpdateTimes, 1000);
+});
+document.getElementById('tacticsClock').addEventListener('click', tacticsToggleTimer);
+document.getElementById('tacticsTimerBtn').addEventListener('click', tacticsToggleTimer);
+document.getElementById('tacticsStopBtn').addEventListener('click', ()=>{
+  const g = getCurrentGame();
+  if(!g){ showToast('Select or start a game first'); return; }
+  if(!g.timer || g.timer.status === 'idle'){ showToast('The game clock has not started'); return; }
+  if(g.timer.status === 'stopped'){ showToast('Already stopped'); return; }
+  document.getElementById('stopGameModal').classList.add('open');
+});
+document.getElementById('stopCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('stopGameModal').classList.remove('open');
+});
+document.getElementById('stopConfirmBtn').addEventListener('click', ()=>{
+  const g = getCurrentGame();
+  if(g){ timerHalt(g, 'stopped'); saveState(); }
+  document.getElementById('stopGameModal').classList.remove('open');
+  tacticsUpdateTimes();
+  showToast('Game stopped');
 });
 document.getElementById('closeTacticsBtn').addEventListener('click', ()=>{
   window.tacticsSetImmersive && document.getElementById('tacticsOverlay').classList.contains('immersive') && window.tacticsSetImmersive(false);
   document.getElementById('tacticsOverlay').classList.remove('open');
+  clearInterval(tacticsTick);
 });
 document.getElementById('tacticsAddBtn').addEventListener('click', ()=>{
   const inp = document.getElementById('tacticsName');
@@ -2008,15 +2173,15 @@ document.getElementById('tacticsName').addEventListener('keydown', e=>{
 });
 document.getElementById('tacticsRemoveBtn').addEventListener('click', ()=>{
   if(!tacticsSelected) return;
-  state.tactics.tokens = state.tactics.tokens.filter(t => t.id !== tacticsSelected);
-  tacticsSelected = null;
+  const tok = state.tactics.tokens.find(t => t.id === tacticsSelected);
+  if(tok) tacticsDeleteToken(tok);
   saveState(); renderTactics();
 });
 document.getElementById('tacticsSquadBtn').addEventListener('click', ()=>{
   const onBoard = new Set(state.tactics.tokens.map(t => t.name.toLowerCase()));
   let added = 0;
   state.players.forEach(p => {
-    if(!onBoard.has(p.name.toLowerCase())){ tacticsAddName(p.name); added++; }
+    if(!onBoard.has(p.name.toLowerCase())){ tacticsAddName(p.name, p.id); added++; }
   });
   showToast(added ? `Added ${added} from squad` : 'Whole squad already on board');
 });
@@ -2133,6 +2298,15 @@ function openEditGame(id){
   tInput.style.display = g.competition === 'tournament' ? 'block' : 'none';
   document.getElementById('editPassword').value = '';
   renderEditGoals();
+  const recs = Object.entries(g.times || {}).filter(([k, r]) => r.ms > 0);
+  document.getElementById('editMinutesWrap').style.display = recs.length ? 'block' : 'none';
+  document.getElementById('editMinutesLabel').textContent =
+    'Minutes played' + (g.timer && g.timer.elapsed ? ' · match time ' + fmtClock(g.timer.elapsed) : '');
+  document.getElementById('editMinutesList').innerHTML = recs.map(([k, r]) => `
+    <div class="edit-goal-row">
+      <span class="edit-goal-name">${escapeHtml(r.name)}</span>
+      <input type="number" min="0" inputmode="numeric" class="modal-input min-input" data-tid="${escapeHtml(k)}" data-orig="${Math.round(r.ms / 60000)}" value="${Math.round(r.ms / 60000)}" />
+    </div>`).join('');
   document.getElementById('editGameModal').classList.add('open');
 }
 
@@ -2246,6 +2420,11 @@ document.getElementById('editSaveBtn').addEventListener('click', ()=>{
   });
   g.goals = cleanGoals;
   g.opponentGoals = editDraft.opponentGoals;
+  document.querySelectorAll('#editMinutesList input[data-tid]').forEach(inp => {
+    const rec = g.times && g.times[inp.dataset.tid];
+    const v = parseInt(inp.value, 10);
+    if(rec && !isNaN(v) && v >= 0 && v !== parseInt(inp.dataset.orig, 10)) rec.ms = v * 60000;
+  });
 
   state.lastUpdated = new Date().toISOString();
   saveState();
