@@ -6,9 +6,9 @@
 <title>Goal Tally</title>
 <style>
   :root{
-    --pitch-dark:#2B6A37;
-    --pitch:#3A8447;
-    --pitch-light:#4A9A57;
+    --pitch-dark:#388A48;
+    --pitch:#4BAC5C;
+    --pitch-light:#6FBA7B;
     --line:#EDEBDF;
     --chalk:#F6F4EA;
     --sun:#E7B84B;
@@ -46,7 +46,7 @@
   #summaryBtn, #backupBtn{
     display:block;
     width:100%;
-    background:rgba(246,244,234,0.14);
+    background:rgba(18,36,26,0.65);
     color:var(--chalk);
     border:1px solid rgba(246,244,234,0.25);
     border-radius:10px;
@@ -397,13 +397,13 @@
     flex:1;
     padding:13px 14px;
     border-radius:10px;
-    border:1.5px dashed rgba(246,244,234,0.4);
-    background:rgba(246,244,234,0.06);
-    color:var(--chalk);
+    border:1.5px dashed rgba(18,36,26,0.5);
+    background:rgba(255,255,255,0.3);
+    color:var(--ink);
     font-size:15px;
     outline:none;
   }
-  #newPlayer::placeholder{color:rgba(246,244,234,0.45);}
+  #newPlayer::placeholder{color:rgba(18,36,26,0.6);}
   #addBtn{
     padding:0 20px;
     border-radius:10px;
@@ -416,7 +416,7 @@
 
   .empty-state{
     text-align:center;
-    color:rgba(246,244,234,0.6);
+    color:var(--ink);
     padding:40px 20px;
     font-size:14px;
   }
@@ -424,7 +424,7 @@
   .footer-note{
     text-align:center;
     font-size:11px;
-    color:rgba(246,244,234,0.75);
+    color:var(--ink);
     padding:18px 20px 6px;
   }
 
@@ -641,7 +641,7 @@
   }
   .modal-backdrop.open{ display:flex; }
   .modal-card{
-    background:var(--pitch-dark);
+    background:#2B6A37;
     border:1px solid rgba(246,244,234,0.2);
     border-radius:14px;
     padding:20px;
