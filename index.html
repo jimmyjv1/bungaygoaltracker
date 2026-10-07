@@ -43,7 +43,7 @@
     background:rgba(18,36,26,0.35);
     position:relative;
   }
-  #summaryBtn, #backupBtn{
+  #summaryBtn, #leaderboardBtn, #backupBtn{
     display:block;
     width:100%;
     background:rgba(18,36,26,0.65);
@@ -55,7 +55,7 @@
     font-weight:700;
     margin-top:10px;
   }
-  #summaryBtn{
+  #summaryBtn, #leaderboardBtn{
     background:var(--sun);
     color:var(--ink);
     border:1px solid var(--sun);
@@ -493,7 +493,7 @@
     font-weight:800;
     color:var(--chalk);
   }
-  #closeSummaryBtn{
+  #closeSummaryBtn, #closeLeaderboardBtn{
     background:rgba(246,244,234,0.14);
     color:var(--chalk);
     border:none;
@@ -609,7 +609,53 @@
     border-bottom:3px solid rgba(0,0,0,0.18);
   }
   .summary-overlay .summary-title{ color:#000; }
-  .summary-overlay #closeSummaryBtn{ background:#000; color:#FFF; }
+  .summary-overlay #closeSummaryBtn,
+  .summary-overlay #closeLeaderboardBtn{ background:#000; color:#FFF; }
+
+  /* Goals Leaderboard rows */
+  .lb-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    border-radius:12px;
+    background:rgba(0,0,0,0.05);
+    border:1px solid rgba(0,0,0,0.12);
+  }
+  .lb-row.first{ background:rgba(231,184,75,0.28); border-color:var(--sun); }
+  .lb-rank{
+    flex:0 0 34px;
+    height:34px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:15px;
+    background:rgba(0,0,0,0.1);
+    color:#000;
+  }
+  .lb-row.first .lb-rank{ background:var(--sun); }
+  .lb-main{ flex:1; min-width:0; }
+  .lb-name{ font-size:15px; font-weight:800; color:#000; overflow-wrap:anywhere; }
+  .lb-bar{
+    height:6px;
+    border-radius:3px;
+    background:rgba(0,0,0,0.1);
+    margin-top:6px;
+    overflow:hidden;
+  }
+  .lb-bar span{ display:block; height:100%; background:#000; border-radius:3px; }
+  .lb-goals{
+    flex:0 0 auto;
+    text-align:right;
+    color:#000;
+    font-weight:800;
+    font-size:22px;
+    line-height:1;
+  }
+  .lb-goals small{ display:block; font-size:10.5px; font-weight:700; margin-top:3px; }
   .summary-overlay .summary-tab{
     background:#FFFFFF;
     border:1.5px solid #000;
@@ -850,10 +896,22 @@
   <div class="footer-note">Saved on this device automatically</div>
 
   <button id="summaryBtn" type="button">Game Summary</button>
+  <button id="leaderboardBtn" type="button" style="margin-top:8px;">Goals Leaderboard</button>
   <button id="backupBtn" type="button" style="margin-top:8px;">Backup & Restore</button>
 </main>
 
 <div class="toast" id="toast"></div>
+
+<div class="summary-overlay" id="leaderboardOverlay">
+  <div class="summary-header">
+    <div class="summary-title">Goals Leaderboard</div>
+    <button id="closeLeaderboardBtn" type="button">Close</button>
+  </div>
+  <div class="summary-body">
+    <div class="summary-hint" id="leaderboardHint"></div>
+    <div id="leaderboardList"></div>
+  </div>
+</div>
 
 <div class="summary-overlay" id="summaryOverlay">
   <div class="summary-header">
@@ -1538,6 +1596,53 @@ document.getElementById('summaryBtn').addEventListener('click', ()=>{
   document.getElementById('tabTournament').classList.remove('active');
   renderSeasonSummary();
   document.getElementById('summaryOverlay').classList.add('open');
+});
+
+function renderLeaderboard(){
+  const list = document.getElementById('leaderboardList');
+  const hint = document.getElementById('leaderboardHint');
+
+  if(state.players.length === 0){
+    hint.textContent = '';
+    list.innerHTML = '<div class="summary-empty">Add players to see the leaderboard.</div>';
+    return;
+  }
+
+  const rows = state.players
+    .map(p => ({ name: p.name, goals: seasonTotalFor(p.id) }))
+    .sort((a,b) => (b.goals - a.goals) || a.name.localeCompare(b.name));
+  const max = rows[0].goals;
+
+  hint.textContent = max === 0
+    ? 'Season goals across all games · no goals recorded yet'
+    : 'Season goals across all games';
+
+  let rank = 0;
+  let prevGoals = null;
+  list.innerHTML = rows.map((r, i) => {
+    if(r.goals !== prevGoals){ rank = i + 1; prevGoals = r.goals; }
+    const pct = max > 0 ? Math.round((r.goals / max) * 100) : 0;
+    const first = rank === 1 && r.goals > 0;
+    return `
+      <div class="lb-row${first ? ' first' : ''}">
+        <div class="lb-rank">${rank}</div>
+        <div class="lb-main">
+          <div class="lb-name">${escapeHtml(r.name)}</div>
+          <div class="lb-bar"><span style="width:${pct}%"></span></div>
+        </div>
+        <div class="lb-goals">${r.goals}<small>${r.goals === 1 ? 'goal' : 'goals'}</small></div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('leaderboardBtn').addEventListener('click', ()=>{
+  renderLeaderboard();
+  document.getElementById('leaderboardOverlay').classList.add('open');
+});
+
+document.getElementById('closeLeaderboardBtn').addEventListener('click', ()=>{
+  document.getElementById('leaderboardOverlay').classList.remove('open');
 });
 
 document.getElementById('closeSummaryBtn').addEventListener('click', ()=>{
