@@ -679,6 +679,36 @@
   .summary-overlay .summary-row-date,
   .summary-overlay .summary-row-score,
   .summary-overlay .summary-row-tag{ color:#000; }
+  .summary-row-venue{
+    display:inline-block;
+    font-size:9.5px;
+    font-weight:800;
+    letter-spacing:0.03em;
+    padding:2px 7px;
+    border-radius:5px;
+    margin-top:4px;
+    margin-right:6px;
+  }
+  .summary-overlay .summary-row-venue.home{ background:var(--sun); color:#000; }
+  .summary-overlay .summary-row-venue.away{ background:#D32F2F; color:#FFF; }
+
+  /* Game Summary search box */
+  .summary-search{
+    display:block;
+    width:100%;
+    margin-bottom:14px;
+    padding:12px 14px;
+    border-radius:10px;
+    border:1.5px solid #000;
+    background:#FFFFFF;
+    color:#000;
+    font-size:16px;
+    font-family:inherit;
+    outline:none;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  .summary-search::placeholder{ color:rgba(0,0,0,0.5); }
   .summary-overlay .summary-row.won{ background:rgba(74,163,90,0.2); }
   .summary-overlay .summary-row.drawn{ background:rgba(224,158,53,0.24); }
   .summary-overlay .summary-row.lost{ background:rgba(196,74,63,0.18); }
@@ -820,7 +850,7 @@
   <div class="total-strip">
     <div class="stat">
       <div class="num" id="totalGoals">0</div>
-      <div class="lbl">Season goals</div>
+      <div class="lbl">Goals</div>
     </div>
     <div class="stat">
       <div class="num" id="topScorer">–</div>
@@ -919,6 +949,7 @@
     <button id="closeSummaryBtn" type="button">Close</button>
   </div>
   <div class="summary-body">
+    <input id="gameSearch" class="summary-search" type="search" placeholder="Search games by team name" autocomplete="off" autocapitalize="off" spellcheck="false" />
     <div class="summary-tabs" id="summaryTabs">
       <button id="tabLeague" class="summary-tab active" type="button">League</button>
       <button id="tabTournament" class="summary-tab" type="button">Tournaments</button>
@@ -1515,13 +1546,16 @@ function renderGameRow(g){
   const compLabels = { season:'LEAGUE', cup:'CUP', friendly:'FRIENDLY', tournament:'TOURNAMENT' };
   const compLabel = compLabels[g.competition] || '';
   const compBadge = compLabel ? `<span class="summary-row-comp ${g.competition}">${compLabel}</span>` : '';
+  const venueBadge = (g.venue === 'home' || g.venue === 'away')
+    ? `<span class="summary-row-venue ${g.venue}">${g.venue === 'home' ? 'HOME' : 'AWAY'}</span>`
+    : '';
 
   return `
     <div class="summary-row ${cls}" data-game-id="${escapeHtml(g.id)}">
       <div class="summary-row-left">
         <div class="summary-row-teams">${escapeHtml(teams)}</div>
         <div class="summary-row-date">${escapeHtml(dateStr)}</div>
-        ${compBadge}
+        ${venueBadge}${compBadge}
       </div>
       <div class="summary-row-right">
         <div class="summary-row-score">${score}</div>
@@ -1545,22 +1579,36 @@ function renderRecord(games){
 
 let summaryTab = 'league';
 
+function gameMatchesSearch(g, q){
+  if(!q) return true;
+  return (g.opponent || '').toLowerCase().includes(q) ||
+         (g.tournamentName || '').toLowerCase().includes(q);
+}
+
 function renderSeasonSummary(){
   const list = document.getElementById('summaryList');
   const recordBox = document.getElementById('summaryRecord');
 
+  const rawQ = (document.getElementById('gameSearch').value || '').trim();
+  const q = rawQ.toLowerCase();
+  const leagueGames = state.games.filter(g => g.competition !== 'tournament' && gameMatchesSearch(g, q));
+  const tournGames = state.games.filter(g => g.competition === 'tournament' && gameMatchesSearch(g, q));
+  document.getElementById('tabLeague').textContent = q ? `League (${leagueGames.length})` : 'League';
+  document.getElementById('tabTournament').textContent = q ? `Tournaments (${tournGames.length})` : 'Tournaments';
+  const noMatch = `<div class="summary-empty">No games match “${escapeHtml(rawQ)}”.</div>`;
+
   if(summaryTab === 'league'){
-    const games = state.games.filter(g => g.competition !== 'tournament');
+    const games = leagueGames;
     recordBox.innerHTML = renderRecord(games);
     const sorted = [...games].sort((a,b)=> b.date.localeCompare(a.date));
     list.innerHTML = sorted.length === 0
-      ? `<div class="summary-empty">No league, cup or friendly games recorded yet.</div>`
+      ? (q ? noMatch : `<div class="summary-empty">No league, cup or friendly games recorded yet.</div>`)
       : sorted.map(renderGameRow).join('');
   } else {
-    const tGames = state.games.filter(g => g.competition === 'tournament');
+    const tGames = tournGames;
     recordBox.innerHTML = renderRecord(tGames);
     if(tGames.length === 0){
-      list.innerHTML = `<div class="summary-empty">No tournament games recorded yet.</div>`;
+      list.innerHTML = q ? noMatch : `<div class="summary-empty">No tournament games recorded yet.</div>`;
       return;
     }
     const groups = {};
@@ -1590,7 +1638,10 @@ document.getElementById('tabTournament').addEventListener('click', ()=>{
   renderSeasonSummary();
 });
 
+document.getElementById('gameSearch').addEventListener('input', renderSeasonSummary);
+
 document.getElementById('summaryBtn').addEventListener('click', ()=>{
+  document.getElementById('gameSearch').value = '';
   summaryTab = 'league';
   document.getElementById('tabLeague').classList.add('active');
   document.getElementById('tabTournament').classList.remove('active');
