@@ -638,6 +638,51 @@
   .modal-btn-secondary{ background:rgba(246,244,234,0.14); color:var(--chalk); }
   .modal-btn-primary{ background:var(--sun); color:var(--ink); }
   .modal-btn-danger{ background:var(--danger); color:var(--chalk); }
+
+  .modal-input option{ color:#000; }
+  .edit-card{ max-width:380px; max-height:90vh; overflow-y:auto; }
+  .edit-label{
+    display:block;
+    font-size:11.5px;
+    font-weight:700;
+    color:rgba(246,244,234,0.6);
+    margin-bottom:5px;
+  }
+  #editHomeBtn.selected{ background:var(--sun); border-color:var(--sun); }
+  #editAwayBtn.selected{ background:var(--danger); border-color:var(--danger); color:var(--chalk); }
+  #editGoalsList{ margin-bottom:10px; }
+  .edit-goal-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:7px 0;
+    border-bottom:1px solid rgba(246,244,234,0.1);
+  }
+  .edit-goal-name{ font-size:14px; font-weight:700; color:var(--chalk); }
+  .edit-stepper{ display:flex; align-items:center; gap:12px; }
+  .edit-stepper button{
+    width:32px; height:32px;
+    border-radius:50%;
+    border:none;
+    background:rgba(246,244,234,0.14);
+    color:var(--chalk);
+    font-size:17px;
+    font-weight:800;
+  }
+  .edit-stepper span{
+    min-width:18px;
+    text-align:center;
+    font-weight:800;
+    color:var(--chalk);
+    font-size:16px;
+  }
+  .summary-row[data-game-id]{ cursor:pointer; }
+  .summary-hint{
+    font-size:12px;
+    color:rgba(246,244,234,0.5);
+    margin:-6px 0 14px;
+    text-align:center;
+  }
 </style>
 </head>
 <body>
@@ -746,6 +791,7 @@
       <button id="tabTournament" class="summary-tab" type="button">Tournaments</button>
     </div>
     <div class="summary-record" id="summaryRecord"></div>
+    <div class="summary-hint">Tap a game to edit it</div>
     <div id="summaryList"></div>
   </div>
 </div>
@@ -769,6 +815,55 @@
     <div class="modal-row">
       <button id="confirmCancelBtn" type="button" class="modal-btn-secondary">Cancel</button>
       <button id="confirmOkBtn" type="button" class="modal-btn-danger">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="editGameModal">
+  <div class="modal-card edit-card">
+    <div class="modal-title">Edit game</div>
+    <div class="modal-text">Change anything below, then enter the password to save.</div>
+
+    <label class="edit-label" for="editOpponent">Opponent</label>
+    <input id="editOpponent" class="modal-input" placeholder="Opponent name" />
+
+    <label class="edit-label" for="editDate">Date</label>
+    <input id="editDate" type="date" class="modal-input" />
+
+    <label class="edit-label">Home or away</label>
+    <div class="venue-toggle" style="margin-bottom:14px;">
+      <button id="editHomeBtn" type="button">Home</button>
+      <button id="editAwayBtn" type="button">Away</button>
+    </div>
+
+    <label class="edit-label" for="editGameType">Competition</label>
+    <select id="editGameType" class="modal-input">
+      <option value="" disabled>Select competition type</option>
+      <option value="season">Season / League</option>
+      <option value="cup">Cup</option>
+      <option value="friendly">Friendly</option>
+      <option value="tournament">Tournament</option>
+    </select>
+    <input id="editTournamentName" class="modal-input" placeholder="Tournament name" style="display:none;" />
+
+    <label class="edit-label">Goals scored by player</label>
+    <div id="editGoalsList"></div>
+
+    <div class="edit-goal-row" style="margin-bottom:14px;">
+      <span class="edit-goal-name">Opponent goals</span>
+      <div class="edit-stepper">
+        <button id="editOppMinus" type="button">−</button>
+        <span id="editOppNum">0</span>
+        <button id="editOppPlus" type="button">+</button>
+      </div>
+    </div>
+
+    <label class="edit-label" for="editPassword">Password</label>
+    <input type="password" id="editPassword" class="modal-input" placeholder="Password to save changes" inputmode="numeric" />
+
+    <div class="modal-row">
+      <button id="editCancelBtn" type="button" class="modal-btn-secondary">Cancel</button>
+      <button id="editSaveBtn" type="button" class="modal-btn-primary">Save changes</button>
     </div>
   </div>
 </div>
@@ -1257,7 +1352,7 @@ function renderGameRow(g){
   const compBadge = compLabel ? `<span class="summary-row-comp ${g.competition}">${compLabel}</span>` : '';
 
   return `
-    <div class="summary-row ${cls}">
+    <div class="summary-row ${cls}" data-game-id="${escapeHtml(g.id)}">
       <div class="summary-row-left">
         <div class="summary-row-teams">${escapeHtml(teams)}</div>
         <div class="summary-row-date">${escapeHtml(dateStr)}</div>
@@ -1386,6 +1481,140 @@ document.getElementById('restoreBtn').addEventListener('click', ()=>{
   }catch(e){
     showToast('That backup code looks invalid');
   }
+});
+
+// ---- Edit a game from the Game Summary page ----
+let editGameId = null;
+let editDraft = null;
+
+function renderEditGoals(){
+  const box = document.getElementById('editGoalsList');
+  if(state.players.length === 0){
+    box.innerHTML = '<div class="modal-text">No players added yet.</div>';
+  } else {
+    box.innerHTML = state.players.map(p => `
+      <div class="edit-goal-row">
+        <span class="edit-goal-name">${escapeHtml(p.name)}</span>
+        <div class="edit-stepper">
+          <button type="button" data-pid="${escapeHtml(p.id)}" data-delta="-1">−</button>
+          <span>${editDraft.goals[p.id] || 0}</span>
+          <button type="button" data-pid="${escapeHtml(p.id)}" data-delta="1">+</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('editOppNum').textContent = editDraft.opponentGoals;
+}
+
+function setEditVenue(v){
+  editDraft.venue = v;
+  document.getElementById('editHomeBtn').classList.toggle('selected', v === 'home');
+  document.getElementById('editAwayBtn').classList.toggle('selected', v === 'away');
+}
+
+function openEditGame(id){
+  const g = state.games.find(x => x.id === id);
+  if(!g) return;
+  editGameId = id;
+  editDraft = {
+    venue: g.venue || null,
+    goals: Object.assign({}, g.goals),
+    opponentGoals: g.opponentGoals || 0
+  };
+  document.getElementById('editOpponent').value = g.opponent || '';
+  document.getElementById('editDate').value = g.date || '';
+  setEditVenue(editDraft.venue);
+  document.getElementById('editGameType').value = g.competition || '';
+  const tInput = document.getElementById('editTournamentName');
+  tInput.value = g.tournamentName || '';
+  tInput.style.display = g.competition === 'tournament' ? 'block' : 'none';
+  document.getElementById('editPassword').value = '';
+  renderEditGoals();
+  document.getElementById('editGameModal').classList.add('open');
+}
+
+function closeEditGame(){
+  document.getElementById('editGameModal').classList.remove('open');
+  editGameId = null;
+  editDraft = null;
+}
+
+document.getElementById('summaryList').addEventListener('click', (e)=>{
+  const row = e.target.closest('.summary-row[data-game-id]');
+  if(row) openEditGame(row.dataset.gameId);
+});
+
+document.getElementById('editHomeBtn').addEventListener('click', ()=> setEditVenue('home'));
+document.getElementById('editAwayBtn').addEventListener('click', ()=> setEditVenue('away'));
+
+document.getElementById('editGameType').addEventListener('change', (e)=>{
+  const tInput = document.getElementById('editTournamentName');
+  tInput.style.display = e.target.value === 'tournament' ? 'block' : 'none';
+  if(e.target.value !== 'tournament') tInput.value = '';
+});
+
+document.getElementById('editGoalsList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-pid]');
+  if(!btn || !editDraft) return;
+  const pid = btn.dataset.pid;
+  const delta = parseInt(btn.dataset.delta, 10);
+  editDraft.goals[pid] = Math.max(0, (editDraft.goals[pid] || 0) + delta);
+  renderEditGoals();
+});
+
+document.getElementById('editOppMinus').addEventListener('click', ()=>{
+  if(!editDraft) return;
+  editDraft.opponentGoals = Math.max(0, editDraft.opponentGoals - 1);
+  renderEditGoals();
+});
+
+document.getElementById('editOppPlus').addEventListener('click', ()=>{
+  if(!editDraft) return;
+  editDraft.opponentGoals += 1;
+  renderEditGoals();
+});
+
+document.getElementById('editCancelBtn').addEventListener('click', closeEditGame);
+
+document.getElementById('editSaveBtn').addEventListener('click', ()=>{
+  const g = state.games.find(x => x.id === editGameId);
+  if(!g || !editDraft) return;
+
+  const pwInput = document.getElementById('editPassword');
+  if(pwInput.value !== '1234'){
+    showToast('Incorrect password');
+    pwInput.value = '';
+    pwInput.focus();
+    return;
+  }
+
+  const comp = document.getElementById('editGameType').value;
+  const tName = document.getElementById('editTournamentName').value.trim();
+  if(comp === 'tournament' && !tName){
+    showToast('Enter the tournament name');
+    return;
+  }
+
+  g.opponent = document.getElementById('editOpponent').value.trim();
+  g.date = document.getElementById('editDate').value || g.date;
+  if(editDraft.venue) g.venue = editDraft.venue;
+  if(comp){
+    g.competition = comp;
+    g.tournamentName = comp === 'tournament' ? tName : '';
+  }
+  const cleanGoals = {};
+  Object.keys(editDraft.goals).forEach(pid => {
+    if(editDraft.goals[pid] > 0) cleanGoals[pid] = editDraft.goals[pid];
+  });
+  g.goals = cleanGoals;
+  g.opponentGoals = editDraft.opponentGoals;
+
+  state.lastUpdated = new Date().toISOString();
+  saveState();
+  render();
+  renderSeasonSummary();
+  closeEditGame();
+  showToast('Game updated');
 });
 
 loadState();
